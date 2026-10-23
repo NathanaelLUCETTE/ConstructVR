@@ -12,7 +12,7 @@ namespace ConstructVR
     public enum GameMode { Menu, Tutorial, Free, Guided, Challenge }
 
     /// <summary>
-    /// Cœur du jeu : menus, modes (Tutoriel, Construction libre, Modèle guidé, Défi),
+    /// Cœur du jeu : menus, modes (Tutoriel, Construction libre, Modèle guidé, Défi, Communauté, Échelle),
     /// aide de Brico, records, sauvegardes et options.
     /// La scène est construite par le menu « ConstructVR > Construire la scène ».
     /// </summary>
@@ -59,9 +59,20 @@ namespace ConstructVR
         public GameObject[] SlotLoadButtons;
         public TextMeshProUGUI CreationsHint;
 
+        [Header("Communauté")]
+        public GameObject CommunityPanel;
+        public TextMeshProUGUI CommunityHint;
+        public TextMeshProUGUI CommunityPage;
+        public GameObject[] CommunityCards;
+        public TextMeshProUGUI[] CommunityCardTitle;
+        public TextMeshProUGUI[] CommunityCardInfo;
+        public ButtonAction[] CommunityGuidedButtons;
+        public ButtonAction[] CommunityChallengeButtons;
+
         [Header("Options")]
         public TextMeshProUGUI MusicValue;
         public TextMeshProUGUI EffectsValue;
+        public TextMeshProUGUI PlayerNameValue;
 
         [Header("Bilan")]
         public TextMeshProUGUI EndTitle;
@@ -71,6 +82,7 @@ namespace ConstructVR
         public GameObject EndNextButton;
         public GameObject EndReplayButton;
         public GameObject EndFreeButton;
+        public GameObject EndScaleButton;
 
         [Header("Bandeau d'infos")]
         public TextMeshProUGUI HudTitle;
@@ -110,9 +122,17 @@ namespace ConstructVR
         MeshRenderer m_TargetGhostRenderer;
         Bounds m_TrashBounds;
         readonly HashSet<LegoBrick> m_Held = new HashSet<LegoBrick>();
+        BuildTrophy m_Trophy;
+        Coroutine m_CelebrationRoutine;
+        ScaleVisit m_Scale;
+        List<BuildModel> m_Community = new List<BuildModel>();
+        int m_CommunityPage;
+
+        const int CommunityCardsPerPage = 6;
 
         InputAction m_HelpAction;
         InputAction m_MenuAction;
+        InputAction m_GrowAction;
 
         // ------------------------------------------------------------------ démarrage
 
@@ -123,6 +143,7 @@ namespace ConstructVR
             Effects.Init(Library.ParticleMaterial);
             InteractionManager = FindAnyObjectByType<XRInteractionManager>();
             if (InteractionManager == null) InteractionManager = new GameObject("XR Interaction Manager").AddComponent<XRInteractionManager>();
+            m_Scale = gameObject.AddComponent<ScaleVisit>();
             m_TrashBounds = TrashZone.bounds;
             TrashZone.enabled = false;
             SoundFX.Volume = SaveSystem.Data.EffectsVolume;
@@ -147,14 +168,22 @@ namespace ConstructVR
             m_MenuAction = new InputAction("Menu", InputActionType.Button);
             m_MenuAction.AddBinding("<XRController>{LeftHand}/menuButton");
             m_MenuAction.AddBinding("<Keyboard>/m");
-            m_MenuAction.performed += _ => ShowPanel(MainMenu);
+            m_MenuAction.performed += _ => { if (m_Scale.Active) ExitScale(); else ShowPanel(MainMenu); };
             m_MenuAction.Enable();
+
+            // mode Échelle : redevenir grand
+            m_GrowAction = new InputAction("Redevenir grand", InputActionType.Button);
+            m_GrowAction.AddBinding("<XRController>{RightHand}/secondaryButton");
+            m_GrowAction.AddBinding("<Keyboard>/e");
+            m_GrowAction.performed += _ => { if (m_Scale.Active) ExitScale(); };
+            m_GrowAction.Enable();
         }
 
         void OnDisable()
         {
             m_HelpAction?.Dispose();
             m_MenuAction?.Dispose();
+            m_GrowAction?.Dispose();
         }
 
         void Start()
@@ -203,6 +232,15 @@ namespace ConstructVR
                 case "sfx+": ChangeVolume(false, 0.1f); break;
                 case "sfx-": ChangeVolume(false, -0.1f); break;
                 case "help": OnHelpPressed(); break;
+                case "community": OpenCommunity(0); break;
+                case "cprev": OpenCommunity(m_CommunityPage - 1); break;
+                case "cnext": OpenCommunity(m_CommunityPage + 1); break;
+                case "cguided": StartCommunity(GameMode.Guided, arg); break;
+                case "cchallenge": StartCommunity(GameMode.Challenge, arg); break;
+                case "publish": PublishCreation(); break;
+                case "scale": EnterScale(); break;
+                case "name+": ChangeName(1); break;
+                case "name-": ChangeName(-1); break;
             }
         }
 
@@ -213,6 +251,7 @@ namespace ConstructVR
             CreationsPanel.SetActive(panel == CreationsPanel);
             OptionsPanel.SetActive(panel == OptionsPanel);
             EndPanel.SetActive(panel == EndPanel);
+            if (CommunityPanel != null) CommunityPanel.SetActive(panel == CommunityPanel);
             ResumeButton.SetActive(m_Running);
             MenuHint.text = SaveSystem.Data.TutorialDone ? "Vise un bouton avec ta manette et appuie sur la gâchette" : "Première fois ? Commence par le Tutoriel !";
         }
@@ -226,7 +265,7 @@ namespace ConstructVR
             {
                 var m = models[i];
                 var rec = SaveSystem.Record(m.Id);
-                ModelCardInfo[i].text = m.Difficulty + " · " + m.Steps.Count + " briques";
+                ModelCardInfo[i].text = LegoCatalog.DifficultyName(m.Difficulty) + " · " + m.Steps.Count + " briques";
                 int stars;
                 if (mode == GameMode.Guided)
                 {
@@ -283,13 +322,24 @@ namespace ConstructVR
         {
             MusicValue.text = Mathf.RoundToInt(SaveSystem.Data.MusicVolume * 100f) + " %";
             EffectsValue.text = Mathf.RoundToInt(SaveSystem.Data.EffectsVolume * 100f) + " %";
+            if (PlayerNameValue != null) PlayerNameValue.text = SharedModels.PlayerName;
+        }
+
+        void ChangeName(int delta)
+        {
+            int n = SharedModels.PlayerNames.Length;
+            SaveSystem.Data.PlayerNameIndex = ((SaveSystem.Data.PlayerNameIndex + delta) % n + n) % n;
+            SaveSystem.Save();
+            RefreshOptions();
         }
 
         // ------------------------------------------------------------------ modes
 
         void StartMode(GameMode mode, BuildModel model = null)
         {
+            if (m_Scale.Active) m_Scale.Exit();
             ShowPanel(null);
+            DestroyTrophy();
             Area.Clear();
             Mode = mode;
             m_Model = model;
@@ -318,19 +368,24 @@ namespace ConstructVR
                     Brico.Say("Construction libre ! Construis tout ce que tu veux : les briques sont illimitées.");
                     break;
                 case GameMode.Guided:
-                    Brico.Say("On construit : " + model.Name + " ! Le modèle tourne sur la table, je te guide brique par brique.");
+                    Brico.Say("On construit : " + model.Name + (model.IsCommunity ? ", le modèle de " + model.Author : "") +
+                              " ! Le modèle tourne sur la table, je te guide brique par brique.");
                     BeginStep();
                     break;
                 case GameMode.Challenge:
-                    m_RevealEnd = Time.time + ChallengeRevealTime;
-                    Brico.Say("Regarde bien ce modèle : il disparaît dans " + Mathf.RoundToInt(ChallengeRevealTime) + " secondes ! Ensuite, reconstruis-le de mémoire.");
+                    float reveal = RevealTime(model);
+                    m_RevealEnd = Time.time + reveal;
+                    Brico.Say("Regarde bien ce modèle : il disparaît dans " + Mathf.RoundToInt(reveal) + " secondes ! Ensuite, reconstruis-le de mémoire, où tu veux sur la plaque.");
                     break;
             }
         }
 
+        /// <summary>Plus le modèle est grand, plus on a de temps pour le mémoriser.</summary>
+        float RevealTime(BuildModel model) => Mathf.Min(ChallengeRevealTime + model.Steps.Count * 0.5f, 150f);
+
         BuildModel NextModel()
         {
-            var models = LegoCatalog.Models;
+            var models = m_Model != null && m_Model.IsCommunity && m_Community.Count > 0 ? m_Community.ToArray() : LegoCatalog.Models;
             for (int i = 0; i < models.Length; i++)
                 if (models[i] == m_Model) return models[(i + 1) % models.Length];
             return models[0];
@@ -380,8 +435,8 @@ namespace ConstructVR
 
         void UpdateHud()
         {
-            Hud.SetActive(m_Running);
-            if (!m_Running) return;
+            Hud.SetActive(m_Running && !m_Scale.Active);
+            if (!Hud.activeSelf) return;
             string time = FormatTime(Time.time - m_StartTime);
             switch (Mode)
             {
@@ -415,7 +470,7 @@ namespace ConstructVR
         static readonly string[] TutorialSteps =
         {
             "Tourne la tête à gauche, vise une brique du tableau et appuie sur la gâchette.",
-            "Garde la gâchette appuyée et pose la brique sur la plaque verte.",
+            "Amène la brique au-dessus de la plaque verte et rappuie sur la gâchette pour la poser.",
             "Choisis une autre couleur dans les pastilles sous le tableau.",
             "Prends une nouvelle brique et pose-la SUR la première.",
             "Reprends une brique et jette-la dans la poubelle rouge à droite.",
@@ -425,7 +480,7 @@ namespace ConstructVR
         static readonly string[] TutorialTalk =
         {
             "Étape 1 : tourne la tête vers la gauche. Tu vois le tableau des briques ? Vise une brique avec ta manette, comme un pistolet, et appuie sur la gâchette !",
-            "Elle est dans ta main ! Garde la gâchette appuyée, amène-la au-dessus de la plaque verte et lâche : elle s'emboîte toute seule. Tourne le poignet pour l'orienter.",
+            "Elle reste dans ta main ! Amène-la au-dessus de la plaque verte et rappuie sur la gâchette : elle s'emboîte toute seule. Tourne le poignet pour l'orienter.",
             "Clac ! Bien joué ! Maintenant, change de couleur : vise une des pastilles rondes sous le tableau.",
             "Super ! Prends une nouvelle brique et pose-la par-dessus la première. Regarde la brique transparente : elle te montre où ta brique va s'emboîter.",
             "Parfait ! Pour supprimer une brique, reprends-la avec la gâchette et lâche-la dans la poubelle rouge à ta droite.",
@@ -449,6 +504,7 @@ namespace ConstructVR
             SaveSystem.Save();
             Brico.Celebrate();
             Brico.Say("Bravo, tu sais tout ! Tu peux maintenant construire librement, suivre un modèle ou relever un défi.");
+            FinishBuild(Celebration.Spin);
             EndGame("Tutoriel terminé !", "Tu sais prendre, poser, colorier et jeter des briques.\nÀ toi de jouer !", 3, "", false);
             EndFreeButton.SetActive(true);
         }
@@ -545,11 +601,13 @@ namespace ConstructVR
                 if (rec.GuidedBestErrors < 0 || m_Errors < rec.GuidedBestErrors) rec.GuidedBestErrors = m_Errors;
                 rec.GuidedStars = Mathf.Max(rec.GuidedStars, stars);
                 SaveSystem.Save();
+                FinishBuild(m_Model.Celebration);
                 EndGame(m_Model.Name + " terminée !",
                     "Temps : " + FormatTime(time) + "\n" + Plural(m_Errors, "erreur"),
                     stars, record ? "Nouveau record !" : "Record : " + FormatTime(rec.GuidedBestTime), true);
                 Brico.Celebrate();
                 Brico.Say(m_Errors == 0 ? "Incroyable, aucune erreur ! Tu es un vrai maître constructeur !" : "Super travail ! Tu as réussi la construction !");
+                Brico.Say("Regarde ta construction bouger ! Ensuite, tu pourras l'attraper entière avec la gâchette.", true);
                 return;
             }
             string[] cheers = { "Bien joué !", "Parfait !", "Super !", "Exactement !", "Bravo !", "Trop fort !" };
@@ -563,17 +621,10 @@ namespace ConstructVR
         {
             if (!m_Running || Mode != GameMode.Challenge) return;
             if (m_RevealEnd > 0f) { Brico.Say("Attends que le modèle disparaisse avant de terminer !"); return; }
-            int matched = 0;
-            var used = new HashSet<LegoBrick>();
-            foreach (var step in m_Model.Steps)
-            foreach (var b in Area.PlacedBricks)
-            {
-                if (used.Contains(b) || !b.Placement.Matches(step)) continue;
-                used.Add(b);
-                matched++;
-                break;
-            }
-            int extra = Area.PlacedBricks.Count - matched;
+            // la construction peut être n'importe où sur la plaque et tournée dans n'importe quel sens
+            var built = Area.GetPlacements();
+            int matched = LegoCatalog.CountMatches(m_Model.Steps, built);
+            int extra = built.Count - matched;
             int total = m_Model.Steps.Count;
             int precision = Mathf.RoundToInt(100f * matched / (total + extra));
             int stars = precision >= 100 ? 3 : precision >= 75 ? 2 : precision >= 40 ? 1 : 0;
@@ -584,6 +635,7 @@ namespace ConstructVR
             SaveSystem.Save();
 
             ShowModel(m_Model);
+            FinishBuild(precision >= 75 ? m_Model.Celebration : Celebration.Spin);
             EndGame(precision >= 100 ? "Mémoire parfaite !" : precision >= 75 ? "Bien joué !" : "Pas mal !",
                 "Briques bien placées : " + matched + " / " + total +
                 (extra > 0 ? "\nBriques en trop ou mal placées : " + extra : "") +
@@ -602,10 +654,131 @@ namespace ConstructVR
             EndReplayButton.SetActive(canReplay);
             EndNextButton.SetActive(canReplay);
             EndFreeButton.SetActive(false);
-            ShowPanel(EndPanel);
-            StartCoroutine(RevealStars(stars));
+            if (EndScaleButton != null) EndScaleButton.SetActive(m_Trophy != null);
+            ShowPanel(null);
+            StartCoroutine(ShowEndPanel(stars));
             Effects.Confetti(ConfettiPoint.position);
             SoundFX.Play(SoundFX.Success, EndPanel.transform.position, 0.8f);
+        }
+
+        /// <summary>Le bilan s'affiche quand l'animation de la construction est finie.</summary>
+        IEnumerator ShowEndPanel(int stars)
+        {
+            while (m_Trophy != null && m_Trophy.IsAnimating) yield return null;
+            yield return new WaitForSeconds(0.3f);
+            // le joueur a déjà relancé une partie, ouvert un menu ou rapetissé entre-temps
+            if (m_Running || m_Scale.Active || MainMenu.activeSelf || OptionsPanel.activeSelf || CreationsPanel.activeSelf) yield break;
+            ShowPanel(EndPanel);
+            yield return RevealStars(stars);
+        }
+
+        // ------------------------------------------------------------------ construction terminée
+
+        /// <summary>Les briques posées deviennent un seul objet qui s'anime, puis qu'on peut attraper.</summary>
+        void FinishBuild(Celebration kind)
+        {
+            var placements = Area.GetPlacements();
+            Area.Clear();
+            DestroyTrophy();
+            m_Trophy = BuildTrophy.Create(Area, placements);
+            if (m_Trophy != null) m_CelebrationRoutine = StartCoroutine(m_Trophy.Celebrate(kind));
+        }
+
+        void DestroyTrophy()
+        {
+            if (m_CelebrationRoutine != null) StopCoroutine(m_CelebrationRoutine);
+            m_CelebrationRoutine = null;
+            if (m_Trophy != null) Destroy(m_Trophy.gameObject);
+            m_Trophy = null;
+        }
+
+        // ------------------------------------------------------------------ mode Échelle
+
+        void EnterScale()
+        {
+            if (m_Scale.Active) return;
+            if (m_Trophy == null && Area.PlacedBricks.Count == 0)
+            {
+                Brico.Say("Il faut d'abord une construction pour entrer dedans ! Construis quelque chose, puis reviens au mode Échelle.");
+                ShowPanel(MainMenu);
+                return;
+            }
+            if (m_Trophy != null)
+            {
+                if (m_CelebrationRoutine != null) StopCoroutine(m_CelebrationRoutine);
+                m_CelebrationRoutine = null;
+                m_Trophy.ReturnHome();
+            }
+            ShowPanel(null);
+            float half = LegoCatalog.BaseplateSize * LegoDims.Pitch * 0.5f;
+            var feet = Area.transform.TransformPoint(new Vector3(0f, 0.002f, -half + LegoDims.Pitch));
+            if (!m_Scale.Enter(feet, Area.transform.forward)) return;
+            SoundFX.Play(SoundFX.Pop, feet, 0.8f);
+            Brico.Say("Tu es minuscule ! Marche avec le joystick gauche pour visiter ta construction. Appuie sur B pour redevenir grand.");
+        }
+
+        void ExitScale()
+        {
+            m_Scale.Exit();
+            if (m_Trophy != null) m_Trophy.SetGrabbable(true);
+            SoundFX.Play(SoundFX.Pop, Brico.transform.position, 0.8f);
+            Brico.Say("Et hop, te revoilà à ta taille normale !");
+            if (!m_Running) ShowPanel(m_Trophy != null ? EndPanel : MainMenu);
+        }
+
+        // ------------------------------------------------------------------ communauté
+
+        void OpenCommunity(int page)
+        {
+            m_Community = SharedModels.LoadAll();
+            int pages = Mathf.Max(1, Mathf.CeilToInt(m_Community.Count / (float)CommunityCardsPerPage));
+            m_CommunityPage = Mathf.Clamp(page, 0, pages - 1);
+            for (int i = 0; i < CommunityCards.Length; i++)
+            {
+                int index = m_CommunityPage * CommunityCardsPerPage + i;
+                bool used = index < m_Community.Count;
+                CommunityCards[i].SetActive(used);
+                if (!used) continue;
+                var m = m_Community[index];
+                var rec = SaveSystem.Record(m.Id);
+                CommunityCardTitle[i].text = m.Name;
+                CommunityCardInfo[i].text = "par " + m.Author + " · " + m.Steps.Count + " briques\n" +
+                    "Étoiles : guidé " + rec.GuidedStars + "/3 · défi " + rec.ChallengeStars + "/3";
+                CommunityGuidedButtons[i].Argument = m.Id;
+                CommunityChallengeButtons[i].Argument = m.Id;
+            }
+            CommunityPage.text = "Page " + (m_CommunityPage + 1) + " / " + pages;
+            CommunityHint.text = m_Community.Count == 0
+                ? "Aucun modèle pour l'instant. Construis quelque chose en Construction libre, puis appuie sur « Publier » !"
+                : "Tu joues en tant que <b>" + SharedModels.PlayerName + "</b>. Partage le dossier « Modèles partagés » pour échanger avec tes amis.";
+            ShowPanel(CommunityPanel);
+        }
+
+        void StartCommunity(GameMode mode, string id)
+        {
+            var model = m_Community.Find(m => m.Id == id);
+            if (model == null) { OpenCommunity(m_CommunityPage); return; }
+            StartMode(mode, model);
+        }
+
+        void PublishCreation()
+        {
+            var placements = Area.GetPlacements();
+            if (placements.Count < 2)
+            {
+                Brico.Say("Pose au moins deux briques avant de publier ton modèle !");
+                return;
+            }
+            var model = SharedModels.Publish(placements);
+            if (model == null)
+            {
+                Brico.Say("Oups, je n'ai pas réussi à enregistrer ton modèle.");
+                return;
+            }
+            SoundFX.Play(SoundFX.Star, Brico.transform.position, 0.7f);
+            Effects.Confetti(ConfettiPoint.position);
+            Brico.Celebrate();
+            Brico.Say("C'est publié ! « " + model.Name + " » est maintenant dans Communauté : tes amis peuvent le construire en mode guidé ou en défi.");
         }
 
         IEnumerator RevealStars(int stars)
@@ -764,6 +937,11 @@ namespace ConstructVR
                 TutorialEvent(5);
                 return;
             }
+            if (m_Scale.Active)
+            {
+                Brico.Say("Tu es en mode Échelle ! Marche avec le joystick gauche, et appuie sur B pour redevenir grand.");
+                return;
+            }
             if (!m_Running)
             {
                 Brico.Wave();
@@ -790,6 +968,8 @@ namespace ConstructVR
                         "Astuce : tourne autour de la table avec le joystick pour voir ta construction sous tous les angles.",
                         "Astuce : le bouton « Annuler » enlève la dernière brique posée.",
                         "Astuce : enregistre ta construction dans « Sauvegarder » pour la retrouver plus tard !",
+                        "Astuce : le bouton « Publier » partage ta construction comme modèle pour les autres joueurs.",
+                        "Astuce : le bouton « Échelle » te rend minuscule pour te promener dans ta construction !",
                     };
                     Brico.Say(tips[m_TipIndex++ % tips.Length]);
                     break;

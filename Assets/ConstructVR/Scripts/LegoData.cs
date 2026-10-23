@@ -68,13 +68,19 @@ namespace ConstructVR
         public bool Matches(BrickPlacement o) => Color == o.Color && SameSpot(o);
     }
 
-    public enum Difficulty { Facile, Moyen, Difficile }
+    public enum Difficulty { Facile, Moyen, Difficile, Extreme }
+
+    /// <summary>Animation jouée par la construction terminée.</summary>
+    public enum Celebration { Spin, Drive, Castle, Robot, Flower, House, Tower, Pyramid, Rocket }
 
     public class BuildModel
     {
         public string Id;
         public string Name;
         public Difficulty Difficulty;
+        public Celebration Celebration = Celebration.Spin;
+        public string Author;              // modèles de la communauté
+        public bool IsCommunity => Author != null;
         public List<BrickPlacement> Steps = new List<BrickPlacement>();
     }
 
@@ -120,7 +126,7 @@ namespace ConstructVR
         /// <summary>Les modèles du mode guidé et du mode Défi, du plus facile au plus difficile.</summary>
         public static BuildModel[] Models => s_Models ??= new[]
         {
-            Make("fleur", "Fleur", Difficulty.Facile, 11, 11,
+            Make("fleur", "Fleur", Difficulty.Facile, 11, 11, Celebration.Flower,
                 P(P2x2, Vert, 0, 0, 0),
                 P(B1x1, Vert, 0, 0, 1),
                 P(P1x2, Vert, 1, 0, 1),
@@ -129,7 +135,7 @@ namespace ConstructVR
                 P(P2x4, Rose, 0, -1, 8),
                 P(B1x1, Jaune, 0, 0, 9)),
 
-            Make("voiture", "Voiture", Difficulty.Facile, 11, 10,
+            Make("voiture", "Voiture", Difficulty.Facile, 11, 10, Celebration.Drive,
                 P(P2x4, Gris, 0, 0, 0),
                 P(B1x1, Noir, -1, 0, 0), P(B1x1, Noir, 2, 0, 0), P(B1x1, Noir, -1, 3, 0), P(B1x1, Noir, 2, 3, 0),
                 P(B2x4, Rouge, 0, 0, 1),
@@ -139,7 +145,7 @@ namespace ConstructVR
                 P(P1x2, Rouge, 0, 3, 4, 1),
                 P(P2x2, Rouge, 0, 1, 7)),
 
-            Make("maison", "Maison", Difficulty.Moyen, 10, 10,
+            Make("maison", "Maison", Difficulty.Moyen, 10, 10, Celebration.House,
                 P(B1x4, Rouge, 0, 0, 0, 1), P(B1x4, Rouge, 0, 3, 0, 1),
                 P(B1x2, Rouge, 0, 1, 0), P(B1x2, Rouge, 3, 1, 0),
                 P(B1x4, Blanc, 0, 0, 3), P(B1x4, Blanc, 3, 0, 3),
@@ -147,7 +153,7 @@ namespace ConstructVR
                 P(P2x4, Bleu, 0, 0, 6, 1), P(P2x4, Bleu, 0, 2, 6, 1),
                 P(B1x1, Noir, 3, 3, 7)),
 
-            Make("robot", "Robot", Difficulty.Moyen, 10, 11,
+            Make("robot", "Robot", Difficulty.Moyen, 10, 11, Celebration.Robot,
                 P(B1x2, Gris, 0, 0, 0), P(B1x2, Gris, 3, 0, 0),
                 P(B2x4, Bleu, 0, 0, 3, 1), P(B2x4, Bleu, 0, 0, 6, 1),
                 P(B1x6, Gris, -1, 0, 9, 1), P(B1x6, Gris, -1, 1, 9, 1),
@@ -156,14 +162,14 @@ namespace ConstructVR
                 P(P2x2, Rouge, 1, 0, 15),
                 P(B1x1, Noir, 1, 0, 16)),
 
-            Make("tour", "Tour", Difficulty.Moyen, 10, 10,
+            Make("tour", "Tour", Difficulty.Moyen, 10, 10, Celebration.Tower,
                 P(B2x4, Gris, 0, 0, 0), P(B2x4, Gris, 2, 0, 0),
                 P(B2x4, Blanc, 0, 0, 3, 1), P(B2x4, Blanc, 0, 2, 3, 1),
                 P(B2x4, Gris, 0, 0, 6), P(B2x4, Gris, 2, 0, 6),
                 P(B2x4, Blanc, 0, 0, 9, 1), P(B2x4, Blanc, 0, 2, 9, 1),
                 P(B1x1, Rouge, 0, 0, 12), P(B1x1, Rouge, 3, 0, 12), P(B1x1, Rouge, 0, 3, 12), P(B1x1, Rouge, 3, 3, 12)),
 
-            Make("chateau", "Château", Difficulty.Difficile, 9, 9,
+            Make("chateau", "Château", Difficulty.Difficile, 9, 9, Celebration.Castle,
                 P(B1x6, Gris, 0, 0, 0, 1), P(B1x6, Gris, 0, 5, 0, 1),
                 P(B1x4, Gris, 0, 1, 0), P(B1x4, Gris, 5, 1, 0),
                 P(B1x6, Gris, 0, 0, 3), P(B1x6, Gris, 5, 0, 3),
@@ -171,7 +177,151 @@ namespace ConstructVR
                 P(B2x2, Blanc, 0, 0, 6), P(B2x2, Blanc, 4, 0, 6), P(B2x2, Blanc, 0, 4, 6), P(B2x2, Blanc, 4, 4, 6),
                 P(B1x2, Gris, 2, 0, 6, 1), P(B1x2, Gris, 2, 5, 6, 1), P(B1x2, Gris, 0, 2, 6), P(B1x2, Gris, 5, 2, 6),
                 P(P2x2, Bleu, 0, 0, 9), P(P2x2, Bleu, 4, 0, 9), P(P2x2, Bleu, 0, 4, 9), P(P2x2, Bleu, 4, 4, 9)),
+
+            Rocket(),
+            Pyramid(),
+            BigCastle(),
         };
+
+        // ---------------------------------------------------------------- grands modèles (générés)
+
+        /// <summary>Fusée : 4 ailerons, un corps de 12 étages et une pointe (~38 briques).</summary>
+        static BuildModel Rocket()
+        {
+            var m = new BuildModel { Id = "fusee", Name = "Fusée", Difficulty = Difficulty.Difficile, Celebration = Celebration.Rocket };
+            const int o = 10; // corps 4x4 de (10,10) à (13,13)
+            m.Steps.Add(P(B1x2, Rouge, o - 1, o + 1, 0)); m.Steps.Add(P(B1x2, Rouge, o + 4, o + 1, 0));
+            m.Steps.Add(P(B1x2, Rouge, o + 1, o - 1, 0, 1)); m.Steps.Add(P(B1x2, Rouge, o + 1, o + 4, 0, 1));
+            int level = 0;
+            for (int floor = 0; floor < 12; floor++, level += 3)
+            {
+                int c = floor == 3 || floor == 8 ? Bleu : floor % 2 == 0 ? Blanc : Gris;
+                if (floor % 2 == 0) { m.Steps.Add(P(B2x4, c, o, o, level)); m.Steps.Add(P(B2x4, c, o + 2, o, level)); }
+                else { m.Steps.Add(P(B2x4, c, o, o, level, 1)); m.Steps.Add(P(B2x4, c, o, o + 2, level, 1)); }
+            }
+            // bandes noires au-dessus des ailerons
+            foreach (var x in new[] { o, o + 2 })
+            {
+                m.Steps.Add(P(B1x2, Noir, x, o - 1, 3, 1)); m.Steps.Add(P(B1x2, Noir, x, o + 4, 3, 1));
+            }
+            m.Steps.Add(P(B1x2, Noir, o - 1, o, 3)); m.Steps.Add(P(B1x2, Noir, o - 1, o + 2, 3));
+            m.Steps.Add(P(B1x2, Noir, o + 4, o, 3)); m.Steps.Add(P(B1x2, Noir, o + 4, o + 2, 3));
+            // pointe
+            m.Steps.Add(P(B2x2, Rouge, o + 1, o + 1, level));
+            m.Steps.Add(P(B2x2, Rouge, o + 1, o + 1, level + 3));
+            m.Steps.Add(P(B1x1, Rouge, o + 1, o + 1, level + 6));
+            m.Steps.Add(P(B1x1, Jaune, o + 1, o + 1, level + 9));
+            SortByLevel(m);
+            return m;
+        }
+
+        /// <summary>Pyramide en briques 2x2, couleurs sable, avec un mât (100 briques).</summary>
+        static BuildModel Pyramid()
+        {
+            var m = new BuildModel { Id = "pyramide", Name = "Pyramide", Difficulty = Difficulty.Extreme, Celebration = Celebration.Pyramid };
+            int[] colors = { 8, 6, Jaune, 6, Jaune, Blanc };
+            int level = 0;
+            for (int size = 12, layer = 0; size >= 2; size -= 2, layer++, level += 3)
+            {
+                int start = 6 + (12 - size) / 2;
+                for (int x = 0; x < size; x += 2)
+                for (int z = 0; z < size; z += 2)
+                    m.Steps.Add(P(B2x2, colors[layer], start + x, start + z, level));
+            }
+            // sommet : 4 tenons dorés puis un mât de 5 briques 1x1
+            const int top = 11;
+            m.Steps.Add(P(B1x1, Jaune, top, top, level)); m.Steps.Add(P(B1x1, Jaune, top + 1, top, level));
+            m.Steps.Add(P(B1x1, Jaune, top, top + 1, level)); m.Steps.Add(P(B1x1, Jaune, top + 1, top + 1, level));
+            for (int i = 1; i <= 5; i++) m.Steps.Add(P(B1x1, i == 5 ? Rouge : Blanc, top, top, level + i * 3));
+            return m;
+        }
+
+        /// <summary>Grand château fort : remparts de 10 rangs, créneaux et 4 tours (200 briques).</summary>
+        static BuildModel BigCastle()
+        {
+            var m = new BuildModel { Id = "grand_chateau", Name = "Grand château", Difficulty = Difficulty.Extreme, Celebration = Celebration.Castle };
+            const int o = 4, n = 16; // remparts carrés de 16 tenons, de (4,4) à (19,19)
+            int level = 0;
+            for (int row = 0; row < 10; row++, level += 3)
+            {
+                int c = row == 9 ? Blanc : row % 3 == 2 ? 8 : Gris;
+                bool even = row % 2 == 0;
+                // deux côtés sur 16 tenons (4 briques 1x4), deux côtés sur 14 tenons (3 briques 1x4 + 1 brique 1x2) :
+                // on alterne d'un rang à l'autre pour croiser les briques aux angles
+                for (int i = 0; i < 4; i++)
+                {
+                    if (even) { m.Steps.Add(P(B1x4, c, o + i * 4, o, level, 1)); m.Steps.Add(P(B1x4, c, o + i * 4, o + n - 1, level, 1)); }
+                    else { m.Steps.Add(P(B1x4, c, o, o + i * 4, level)); m.Steps.Add(P(B1x4, c, o + n - 1, o + i * 4, level)); }
+                }
+                for (int i = 0; i < 3; i++)
+                {
+                    if (even) { m.Steps.Add(P(B1x4, c, o, o + 1 + i * 4, level)); m.Steps.Add(P(B1x4, c, o + n - 1, o + 1 + i * 4, level)); }
+                    else { m.Steps.Add(P(B1x4, c, o + 1 + i * 4, o, level, 1)); m.Steps.Add(P(B1x4, c, o + 1 + i * 4, o + n - 1, level, 1)); }
+                }
+                if (even) { m.Steps.Add(P(B1x2, c, o, o + 13, level)); m.Steps.Add(P(B1x2, c, o + n - 1, o + 13, level)); }
+                else { m.Steps.Add(P(B1x2, c, o + 13, o, level, 1)); m.Steps.Add(P(B1x2, c, o + 13, o + n - 1, level, 1)); }
+            }
+            // créneaux : une brique 1x1 sur deux, sauf près des tours
+            for (int i = 3; i <= 12; i += 2)
+            {
+                m.Steps.Add(P(B1x1, Gris, o + i, o, level)); m.Steps.Add(P(B1x1, Gris, o + i, o + n - 1, level));
+                m.Steps.Add(P(B1x1, Gris, o, o + i, level)); m.Steps.Add(P(B1x1, Gris, o + n - 1, o + i, level));
+            }
+            // tours d'angle : 4 briques 2x2, un toit et un drapeau
+            foreach (var t in new[] { new Vector2Int(o, o), new Vector2Int(o + n - 2, o), new Vector2Int(o, o + n - 2), new Vector2Int(o + n - 2, o + n - 2) })
+            {
+                for (int i = 0; i < 4; i++) m.Steps.Add(P(B2x2, i == 3 ? Blanc : Gris, t.x, t.y, level + i * 3));
+                m.Steps.Add(P(P2x2, Bleu, t.x, t.y, level + 12));
+                m.Steps.Add(P(B1x1, Rouge, t.x, t.y, level + 13));
+            }
+            SortByLevel(m);
+            return m;
+        }
+
+        /// <summary>Range les étapes du bas vers le haut (chaque brique a un support quand on la pose).</summary>
+        public static void SortByLevel(BuildModel m)
+        {
+            var indexed = new List<KeyValuePair<int, BrickPlacement>>();
+            for (int i = 0; i < m.Steps.Count; i++) indexed.Add(new KeyValuePair<int, BrickPlacement>(i, m.Steps[i]));
+            indexed.Sort((a, b) => a.Value.Level != b.Value.Level ? a.Value.Level.CompareTo(b.Value.Level) : a.Key.CompareTo(b.Key));
+            m.Steps.Clear();
+            foreach (var e in indexed) m.Steps.Add(e.Value);
+        }
+
+        public static string DifficultyName(Difficulty d) => d == Difficulty.Extreme ? "Extrême" : d.ToString();
+
+        /// <summary>Tourne une brique d'un quart de tour autour de l'origine de la grille.</summary>
+        public static BrickPlacement RotateQuarter(BrickPlacement p)
+        {
+            var f = Shapes[p.Shape].Footprint(p.Rot);
+            return new BrickPlacement(p.Shape, p.Color, p.Z, -p.X - f.x, p.Level, (p.Rot + 1) % 4);
+        }
+
+        /// <summary>
+        /// Nombre de briques d'une construction qui correspondent au modèle, où qu'elle soit sur la plaque
+        /// et quel que soit son sens : on garde le meilleur décalage parmi les 4 orientations.
+        /// </summary>
+        public static int CountMatches(List<BrickPlacement> model, List<BrickPlacement> built)
+        {
+            int best = 0;
+            var rotated = new List<BrickPlacement>(model);
+            for (int r = 0; r < 4; r++)
+            {
+                var votes = new Dictionary<Vector2Int, int>();
+                foreach (var m in rotated)
+                foreach (var b in built)
+                {
+                    if (b.Shape != m.Shape || b.Color != m.Color || b.Level != m.Level) continue;
+                    if (!Shapes[m.Shape].IsSquare && b.Rot % 2 != m.Rot % 2) continue;
+                    var offset = new Vector2Int(b.X - m.X, b.Z - m.Z);
+                    votes.TryGetValue(offset, out int v);
+                    votes[offset] = ++v;
+                    if (v > best) best = v;
+                }
+                for (int i = 0; i < rotated.Count; i++) rotated[i] = RotateQuarter(rotated[i]);
+            }
+            return best;
+        }
 
         public static BuildModel FindModel(string id)
         {
@@ -179,9 +329,9 @@ namespace ConstructVR
             return null;
         }
 
-        static BuildModel Make(string id, string name, Difficulty difficulty, int ox, int oz, params BrickPlacement[] steps)
+        static BuildModel Make(string id, string name, Difficulty difficulty, int ox, int oz, Celebration celebration, params BrickPlacement[] steps)
         {
-            var m = new BuildModel { Id = id, Name = name, Difficulty = difficulty };
+            var m = new BuildModel { Id = id, Name = name, Difficulty = difficulty, Celebration = celebration };
             foreach (var s in steps)
                 m.Steps.Add(new BrickPlacement(s.Shape, s.Color, s.X + ox, s.Z + oz, s.Level, s.Rot));
             return m;

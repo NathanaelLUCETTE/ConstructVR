@@ -88,6 +88,26 @@ namespace ConstructVR
             ps.Emit(12);
         }
 
+        /// <summary>Petit nuage coloré (fumée du pot d'échappement, flammes de la fusée…).</summary>
+        public static void Puff(Vector3 position, Color color, int count = 8, float speed = 0.12f, float size = 0.012f)
+        {
+            var ps = Create("Fumée", position, 0.6f);
+            var main = ps.main;
+            main.startSpeed = new ParticleSystem.MinMaxCurve(speed * 0.4f, speed);
+            main.startSize = new ParticleSystem.MinMaxCurve(size * 0.6f, size * 1.4f);
+            main.startColor = color;
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = 0.01f;
+            var col = ps.colorOverLifetime;
+            col.enabled = true;
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                      new[] { new GradientAlphaKey(color.a, 0f), new GradientAlphaKey(0f, 1f) });
+            col.color = g;
+            ps.Emit(count);
+        }
+
         /// <summary>Pluie de confettis pour fêter une construction terminée.</summary>
         public static void Confetti(Vector3 position)
         {

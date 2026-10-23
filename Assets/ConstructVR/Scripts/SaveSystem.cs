@@ -31,6 +31,7 @@ namespace ConstructVR
         public float MusicVolume = 0.35f;
         public float EffectsVolume = 0.8f;
         public bool TutorialDone;
+        public int PlayerNameIndex;
     }
 
     /// <summary>Sauvegarde des créations, des records et des options (fichier JSON sur l'appareil).</summary>

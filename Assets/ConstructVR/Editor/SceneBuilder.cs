@@ -320,13 +320,34 @@ namespace ConstructVR.EditorTools
                             if (c.name == "Directional Light") c.gameObject.SetActive(false);
                         break;
                 }
-                if (go.name.StartsWith("XR Origin"))
+                if (go.name.StartsWith("XR Interaction Simulator") && go.GetComponent<UnityEngine.XR.Interaction.Toolkit.Inputs.Simulation.XRInteractionSimulator>() != null)
+                    Object.DestroyImmediate(go);
+                else if (go.name.StartsWith("XR Origin"))
                 {
                     go.transform.SetPositionAndRotation(PlayerPosition, Quaternion.identity);
                     foreach (var t in go.GetComponentsInChildren<Transform>(true))
                         if (t.name.StartsWith("Affordance Callouts")) t.gameObject.SetActive(false);
                 }
             }
+            AddSimulator();
+        }
+
+        /// <summary>
+        /// Simulateur XR (clavier/souris) placé désactivé dans la scène : HeadsetDetector l'active
+        /// seulement s'il n'y a pas de casque, sinon il remplacerait le vrai casque.
+        /// </summary>
+        public static void AddSimulator()
+        {
+            var settings = AssetDatabase.LoadMainAssetAtPath("Assets/XRI/Settings/Resources/XRDeviceSimulatorSettings.asset");
+            if (settings == null) return;
+            var so = new SerializedObject(settings);
+            so.FindProperty("m_AutomaticallyInstantiateSimulatorPrefab").boolValue = false;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            var prefab = so.FindProperty("m_SimulatorPrefab").objectReferenceValue as GameObject;
+            if (prefab == null) return;
+            var sim = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            sim.name = prefab.name;
+            sim.SetActive(false);
         }
 
         // ================================================================== primitives
@@ -845,6 +866,8 @@ namespace ConstructVR.EditorTools
         static readonly Color Purple = new Color(0.55f, 0.32f, 0.82f);
         static readonly Color Grey = new Color(0.32f, 0.37f, 0.48f);
         static readonly Color Red = new Color(0.82f, 0.2f, 0.18f);
+        static readonly Color Teal = new Color(0.1f, 0.55f, 0.6f);
+        static readonly Color Pink = new Color(0.86f, 0.3f, 0.6f);
 
         static readonly Vector3 MenuPosition = new Vector3(0f, 1.42f, 0.05f);
         static readonly Quaternion MenuRotation = Quaternion.Euler(8f, 0f, 0f);
@@ -861,22 +884,24 @@ namespace ConstructVR.EditorTools
         static void BuildMenus(Transform root, GameManager gm, Sprite star)
         {
             // ---------- menu principal
-            var main = Panel(root, "Menu principal", new Vector2(980f, 820f));
-            UIFactory.CreateText(main, ColoredTitle(), 96f, new Vector2(0f, 300f), new Vector2(900f, 120f), TextAlignmentOptions.Center, true);
-            UIFactory.CreateText(main, "Construis tout ce que tu veux avec des briques Lego !", 32f, new Vector2(0f, 222f), new Vector2(900f, 50f), TextAlignmentOptions.Center, false, UIFactory.TextDim);
-            ModeButton(main, "Tutoriel", "Apprends à jouer en 2 minutes", new Vector2(-225f, 105f), Purple, "tutorial");
-            ModeButton(main, "Construction libre", "Construis sans limite", new Vector2(225f, 105f), Green, "free");
-            ModeButton(main, "Modèle guidé", "Suis la notice avec Brico", new Vector2(-225f, -45f), Blue, "guided");
-            ModeButton(main, "Défi", "Reconstruis de mémoire", new Vector2(225f, -45f), Orange, "challenge");
-            UIFactory.CreateButton(main, "Mes créations", new Vector2(-260f, -185f), new Vector2(300f, 80f), Grey, "creations", "", 32f);
-            UIFactory.CreateButton(main, "Options", new Vector2(60f, -185f), new Vector2(260f, 80f), Grey, "options", "", 32f);
-            gm.ResumeButton = UIFactory.CreateButton(main, "Reprendre", new Vector2(330f, -185f), new Vector2(240f, 80f), new Color(0.98f, 0.79f, 0.04f), "resume", "", 32f, new Color(0.12f, 0.12f, 0.16f));
-            gm.MenuHint = UIFactory.CreateText(main, "", 26f, new Vector2(0f, -300f), new Vector2(900f, 60f), TextAlignmentOptions.Center, false, UIFactory.TextDim);
+            var main = Panel(root, "Menu principal", new Vector2(980f, 980f));
+            UIFactory.CreateText(main, ColoredTitle(), 96f, new Vector2(0f, 380f), new Vector2(900f, 120f), TextAlignmentOptions.Center, true);
+            UIFactory.CreateText(main, "Construis tout ce que tu veux avec des briques Lego !", 32f, new Vector2(0f, 302f), new Vector2(900f, 50f), TextAlignmentOptions.Center, false, UIFactory.TextDim);
+            ModeButton(main, "Tutoriel", "Apprends à jouer en 2 minutes", new Vector2(-225f, 185f), Purple, "tutorial");
+            ModeButton(main, "Construction libre", "Construis sans limite", new Vector2(225f, 185f), Green, "free");
+            ModeButton(main, "Modèle guidé", "Suis la notice avec Brico", new Vector2(-225f, 35f), Blue, "guided");
+            ModeButton(main, "Défi", "Reconstruis de mémoire", new Vector2(225f, 35f), Orange, "challenge");
+            ModeButton(main, "Communauté", "Construis les modèles des autres", new Vector2(-225f, -115f), Teal, "community");
+            ModeButton(main, "Mode Échelle", "Deviens minuscule et entre dedans", new Vector2(225f, -115f), Pink, "scale");
+            UIFactory.CreateButton(main, "Mes créations", new Vector2(-260f, -265f), new Vector2(300f, 80f), Grey, "creations", "", 32f);
+            UIFactory.CreateButton(main, "Options", new Vector2(60f, -265f), new Vector2(260f, 80f), Grey, "options", "", 32f);
+            gm.ResumeButton = UIFactory.CreateButton(main, "Reprendre", new Vector2(330f, -265f), new Vector2(240f, 80f), new Color(0.98f, 0.79f, 0.04f), "resume", "", 32f, new Color(0.12f, 0.12f, 0.16f));
+            gm.MenuHint = UIFactory.CreateText(main, "", 26f, new Vector2(0f, -375f), new Vector2(900f, 60f), TextAlignmentOptions.Center, false, UIFactory.TextDim);
             gm.MainMenu = main.gameObject;
 
             // ---------- choix du modèle
-            var select = Panel(root, "Choix du modèle", new Vector2(1060f, 840f));
-            gm.ModelSelectTitle = UIFactory.CreateText(select, "Choisis ta construction", 52f, new Vector2(0f, 330f), new Vector2(980f, 80f), TextAlignmentOptions.Center, true);
+            var select = Panel(root, "Choix du modèle", new Vector2(1060f, 1000f));
+            gm.ModelSelectTitle = UIFactory.CreateText(select, "Choisis ta construction", 52f, new Vector2(0f, 425f), new Vector2(980f, 80f), TextAlignmentOptions.Center, true);
             var models = LegoCatalog.Models;
             gm.ModelCardInfo = new TextMeshProUGUI[models.Length];
             gm.ModelCardRecord = new TextMeshProUGUI[models.Length];
@@ -884,17 +909,17 @@ namespace ConstructVR.EditorTools
             for (int i = 0; i < models.Length; i++)
             {
                 var m = models[i];
-                var pos = new Vector2((i % 3 - 1) * 335f, 160f - (i / 3) * 255f);
-                var card = UIFactory.CreateButton(select, "", pos, new Vector2(315f, 235f), DifficultyColor(m.Difficulty), "model", m.Id).GetComponent<RectTransform>();
+                var pos = new Vector2((i % 3 - 1) * 335f, 255f - (i / 3) * 205f);
+                var card = UIFactory.CreateButton(select, "", pos, new Vector2(315f, 190f), DifficultyColor(m.Difficulty), "model", m.Id).GetComponent<RectTransform>();
                 card.name = "Carte " + m.Name;
-                UIFactory.CreateText(card, m.Name, 40f, new Vector2(0f, 72f), new Vector2(300f, 56f), TextAlignmentOptions.Center, true);
-                gm.ModelCardInfo[i] = UIFactory.CreateText(card, "", 24f, new Vector2(0f, 30f), new Vector2(300f, 36f), TextAlignmentOptions.Center, false, new Color(1f, 1f, 1f, 0.9f));
+                UIFactory.CreateText(card, m.Name, 36f, new Vector2(0f, 62f), new Vector2(300f, 50f), TextAlignmentOptions.Center, true);
+                gm.ModelCardInfo[i] = UIFactory.CreateText(card, "", 23f, new Vector2(0f, 26f), new Vector2(300f, 34f), TextAlignmentOptions.Center, false, new Color(1f, 1f, 1f, 0.9f));
                 for (int s = 0; s < 3; s++)
-                    gm.ModelCardStars[i * 3 + s] = UIFactory.CreateImage(card, "Étoile", new Vector2((s - 1) * 52f, -22f), new Vector2(46f, 46f), GameManager.StarOff, star);
-                gm.ModelCardRecord[i] = UIFactory.CreateText(card, "", 22f, new Vector2(0f, -78f), new Vector2(300f, 40f), TextAlignmentOptions.Center, false, new Color(1f, 1f, 1f, 0.9f));
+                    gm.ModelCardStars[i * 3 + s] = UIFactory.CreateImage(card, "Étoile", new Vector2((s - 1) * 46f, -14f), new Vector2(40f, 40f), GameManager.StarOff, star);
+                gm.ModelCardRecord[i] = UIFactory.CreateText(card, "", 21f, new Vector2(0f, -62f), new Vector2(300f, 36f), TextAlignmentOptions.Center, false, new Color(1f, 1f, 1f, 0.9f));
             }
-            UIFactory.CreateText(select, "<color=#5CD17A>Facile</color>   ·   <color=#FFB347>Moyen</color>   ·   <color=#FF6B6B>Difficile</color>", 26f, new Vector2(-150f, -330f), new Vector2(600f, 50f));
-            UIFactory.CreateButton(select, "Retour", new Vector2(330f, -330f), new Vector2(240f, 72f), Grey, "back", "", 30f);
+            UIFactory.CreateText(select, "<color=#5CD17A>Facile</color>  ·  <color=#FFB347>Moyen</color>  ·  <color=#FF6B6B>Difficile</color>  ·  <color=#C38BFF>Extrême</color>", 26f, new Vector2(-150f, -420f), new Vector2(680f, 50f));
+            UIFactory.CreateButton(select, "Retour", new Vector2(360f, -420f), new Vector2(240f, 72f), Grey, "back", "", 30f);
             gm.ModelSelect = select.gameObject;
 
             // ---------- mes créations
@@ -916,35 +941,64 @@ namespace ConstructVR.EditorTools
             gm.CreationsPanel = creations.gameObject;
 
             // ---------- options
-            var options = Panel(root, "Options", new Vector2(980f, 760f));
-            UIFactory.CreateText(options, "Options", 56f, new Vector2(0f, 290f), new Vector2(900f, 80f), TextAlignmentOptions.Center, true);
-            gm.MusicValue = VolumeRow(options, "Musique", 190f, "music");
-            gm.EffectsValue = VolumeRow(options, "Effets sonores", 90f, "sfx");
-            UIFactory.CreateImage(options, "Commandes", new Vector2(0f, -110f), new Vector2(880f, 270f), UIFactory.CardColor);
+            var options = Panel(root, "Options", new Vector2(980f, 900f));
+            UIFactory.CreateText(options, "Options", 56f, new Vector2(0f, 360f), new Vector2(900f, 80f), TextAlignmentOptions.Center, true);
+            gm.MusicValue = VolumeRow(options, "Musique", 260f, "music");
+            gm.EffectsValue = VolumeRow(options, "Effets sonores", 160f, "sfx");
+            gm.PlayerNameValue = VolumeRow(options, "Pseudo (Communauté)", 60f, "name");
+            UIFactory.CreateImage(options, "Commandes", new Vector2(0f, -150f), new Vector2(880f, 290f), UIFactory.CardColor);
             UIFactory.CreateText(options, "<b>Commandes</b>\n" +
-                "<b>Gâchette</b> : prendre, tenir et poser une brique · appuyer sur les boutons\n" +
+                "<b>Gâchette</b> : prendre, poser une brique · appuyer sur les boutons\n" +
                 "<b>Poignet</b> : tourner la brique   ·   <b>Bouton A</b> : appeler Brico\n" +
                 "<b>Joystick gauche</b> : marcher   ·   <b>Joystick droit</b> : tourner / se téléporter\n" +
+                "<b>Bouton B</b> : redevenir grand (mode Échelle)\n" +
                 "<b>Bouton Menu</b> (manette gauche) : ouvrir ce menu",
-                26f, new Vector2(0f, -110f), new Vector2(840f, 250f), TextAlignmentOptions.Center, false, new Color(1f, 1f, 1f, 0.9f));
-            UIFactory.CreateButton(options, "Retour", new Vector2(0f, -305f), new Vector2(260f, 72f), Grey, "back", "", 30f);
+                26f, new Vector2(0f, -150f), new Vector2(840f, 280f), TextAlignmentOptions.Center, false, new Color(1f, 1f, 1f, 0.9f));
+            UIFactory.CreateButton(options, "Retour", new Vector2(0f, -375f), new Vector2(260f, 72f), Grey, "back", "", 30f);
             gm.OptionsPanel = options.gameObject;
 
             // ---------- bilan
-            var end = Panel(root, "Bilan", new Vector2(980f, 760f));
-            gm.EndTitle = UIFactory.CreateText(end, "Bravo !", 62f, new Vector2(0f, 270f), new Vector2(900f, 90f), TextAlignmentOptions.Center, true);
+            var end = Panel(root, "Bilan", new Vector2(980f, 860f));
+            gm.EndTitle = UIFactory.CreateText(end, "Bravo !", 62f, new Vector2(0f, 310f), new Vector2(900f, 90f), TextAlignmentOptions.Center, true);
             gm.EndStars = new Image[3];
             for (int s = 0; s < 3; s++)
-                gm.EndStars[s] = UIFactory.CreateImage(end, "Étoile", new Vector2((s - 1) * 120f, 150f), new Vector2(105f, 105f), GameManager.StarOff, star);
-            gm.EndBody = UIFactory.CreateText(end, "", 34f, new Vector2(0f, 10f), new Vector2(880f, 150f));
-            gm.EndRecord = UIFactory.CreateText(end, "", 32f, new Vector2(0f, -100f), new Vector2(880f, 50f), TextAlignmentOptions.Center, true, new Color(1f, 0.82f, 0.2f));
-            gm.EndReplayButton = UIFactory.CreateButton(end, "Rejouer", new Vector2(-300f, -230f), new Vector2(260f, 84f), Blue, "replay", "", 32f);
-            gm.EndNextButton = UIFactory.CreateButton(end, "Modèle suivant", new Vector2(0f, -230f), new Vector2(300f, 84f), Green, "next", "", 30f);
-            gm.EndFreeButton = UIFactory.CreateButton(end, "Construction libre", new Vector2(-150f, -230f), new Vector2(360f, 84f), Green, "free", "", 30f);
-            UIFactory.CreateButton(end, "Menu", new Vector2(300f, -230f), new Vector2(240f, 84f), Grey, "menu", "", 32f);
+                gm.EndStars[s] = UIFactory.CreateImage(end, "Étoile", new Vector2((s - 1) * 120f, 190f), new Vector2(105f, 105f), GameManager.StarOff, star);
+            gm.EndBody = UIFactory.CreateText(end, "", 34f, new Vector2(0f, 50f), new Vector2(880f, 150f));
+            gm.EndRecord = UIFactory.CreateText(end, "", 32f, new Vector2(0f, -60f), new Vector2(880f, 50f), TextAlignmentOptions.Center, true, new Color(1f, 0.82f, 0.2f));
+            UIFactory.CreateText(end, "Attrape ta construction avec la gâchette pour l'admirer !", 24f, new Vector2(0f, -110f), new Vector2(880f, 40f), TextAlignmentOptions.Center, false, UIFactory.TextDim);
+            gm.EndReplayButton = UIFactory.CreateButton(end, "Rejouer", new Vector2(-300f, -195f), new Vector2(260f, 84f), Blue, "replay", "", 32f);
+            gm.EndNextButton = UIFactory.CreateButton(end, "Modèle suivant", new Vector2(0f, -195f), new Vector2(300f, 84f), Green, "next", "", 30f);
+            gm.EndFreeButton = UIFactory.CreateButton(end, "Construction libre", new Vector2(-150f, -195f), new Vector2(360f, 84f), Green, "free", "", 30f);
+            UIFactory.CreateButton(end, "Menu", new Vector2(300f, -195f), new Vector2(240f, 84f), Grey, "menu", "", 32f);
+            gm.EndScaleButton = UIFactory.CreateButton(end, "Rentrer dedans (mode Échelle)", new Vector2(0f, -310f), new Vector2(560f, 84f), Pink, "scale", "", 30f);
             gm.EndPanel = end.gameObject;
 
-            foreach (var p in new[] { select, creations, options, end }) p.gameObject.SetActive(false);
+            // ---------- communauté
+            var community = Panel(root, "Communauté", new Vector2(1060f, 1000f));
+            UIFactory.CreateText(community, "Modèles de la communauté", 52f, new Vector2(0f, 425f), new Vector2(980f, 80f), TextAlignmentOptions.Center, true);
+            gm.CommunityHint = UIFactory.CreateText(community, "", 25f, new Vector2(0f, 352f), new Vector2(980f, 70f), TextAlignmentOptions.Center, false, UIFactory.TextDim);
+            gm.CommunityCards = new GameObject[6];
+            gm.CommunityCardTitle = new TextMeshProUGUI[6];
+            gm.CommunityCardInfo = new TextMeshProUGUI[6];
+            gm.CommunityGuidedButtons = new ButtonAction[6];
+            gm.CommunityChallengeButtons = new ButtonAction[6];
+            for (int i = 0; i < 6; i++)
+            {
+                var pos = new Vector2((i % 3 - 1) * 335f, 175f - (i / 3) * 290f);
+                var card = UIFactory.CreateImage(community, "Carte communauté", pos, new Vector2(315f, 270f), Teal).rectTransform;
+                gm.CommunityCards[i] = card.gameObject;
+                gm.CommunityCardTitle[i] = UIFactory.CreateText(card, "", 30f, new Vector2(0f, 82f), new Vector2(295f, 80f), TextAlignmentOptions.Center, true);
+                gm.CommunityCardInfo[i] = UIFactory.CreateText(card, "", 21f, new Vector2(0f, 6f), new Vector2(295f, 70f), TextAlignmentOptions.Center, false, new Color(1f, 1f, 1f, 0.9f));
+                gm.CommunityGuidedButtons[i] = UIFactory.CreateButton(card, "Guidé", new Vector2(-75f, -85f), new Vector2(140f, 64f), Blue, "cguided", "", 28f).GetComponent<ButtonAction>();
+                gm.CommunityChallengeButtons[i] = UIFactory.CreateButton(card, "Défi", new Vector2(75f, -85f), new Vector2(140f, 64f), Orange, "cchallenge", "", 28f).GetComponent<ButtonAction>();
+            }
+            UIFactory.CreateButton(community, "< Précédent", new Vector2(-370f, -420f), new Vector2(200f, 72f), Grey, "cprev", "", 26f);
+            gm.CommunityPage = UIFactory.CreateText(community, "Page 1 / 1", 28f, new Vector2(-155f, -420f), new Vector2(220f, 60f));
+            UIFactory.CreateButton(community, "Suivant >", new Vector2(60f, -420f), new Vector2(200f, 72f), Grey, "cnext", "", 26f);
+            UIFactory.CreateButton(community, "Retour", new Vector2(360f, -420f), new Vector2(240f, 72f), Grey, "back", "", 30f);
+            gm.CommunityPanel = community.gameObject;
+
+            foreach (var p in new[] { select, creations, options, end, community }) p.gameObject.SetActive(false);
         }
 
         static void ModeButton(RectTransform parent, string title, string subtitle, Vector2 pos, Color color, string action)
@@ -965,39 +1019,42 @@ namespace ConstructVR.EditorTools
             return value;
         }
 
-        static Color DifficultyColor(Difficulty d) => d == Difficulty.Facile ? new Color(0.17f, 0.58f, 0.33f) : d == Difficulty.Moyen ? new Color(0.88f, 0.5f, 0.1f) : new Color(0.8f, 0.22f, 0.22f);
+        static Color DifficultyColor(Difficulty d) => d == Difficulty.Facile ? new Color(0.17f, 0.58f, 0.33f) : d == Difficulty.Moyen ? new Color(0.88f, 0.5f, 0.1f) :
+            d == Difficulty.Difficile ? new Color(0.8f, 0.22f, 0.22f) : new Color(0.45f, 0.22f, 0.75f);
 
         // ================================================================== bandeau d'infos
 
         static void BuildHud(Transform root, GameManager gm)
         {
-            var hud = UIFactory.CreateCanvas("Bandeau d'infos", root, new Vector2(1000f, 190f), new Vector3(0f, 1.2f, 0.47f), Quaternion.Euler(-5f, 0f, 0f), 0.0008f, UIFactory.PanelColor);
-            gm.HudTitle = UIFactory.CreateText(hud, "", 36f, new Vector2(-235f, 45f), new Vector2(500f, 50f), TextAlignmentOptions.Left, true);
-            gm.HudInfo = UIFactory.CreateText(hud, "", 26f, new Vector2(-235f, -25f), new Vector2(500f, 100f), TextAlignmentOptions.TopLeft, false, new Color(1f, 1f, 1f, 0.88f));
+            var hud = UIFactory.CreateCanvas("Bandeau d'infos", root, new Vector2(1000f, 270f), new Vector3(0f, 1.2f, 0.47f), Quaternion.Euler(-5f, 0f, 0f), 0.0008f, UIFactory.PanelColor);
+            gm.HudTitle = UIFactory.CreateText(hud, "", 36f, new Vector2(-235f, 85f), new Vector2(500f, 50f), TextAlignmentOptions.Left, true);
+            gm.HudInfo = UIFactory.CreateText(hud, "", 26f, new Vector2(-235f, -10f), new Vector2(500f, 140f), TextAlignmentOptions.TopLeft, false, new Color(1f, 1f, 1f, 0.88f));
 
             var bs = new Vector2(150f, 66f);
-            UIFactory.CreateButton(hud, "Aide (A)", new Vector2(250f, 42f), bs, Purple, "help", "", 26f);
-            UIFactory.CreateButton(hud, "Menu", new Vector2(410f, 42f), bs, Grey, "menu", "", 26f);
+            UIFactory.CreateButton(hud, "Aide (A)", new Vector2(250f, 82f), bs, Purple, "help", "", 26f);
+            UIFactory.CreateButton(hud, "Menu", new Vector2(410f, 82f), bs, Grey, "menu", "", 26f);
 
             var free = Group("Boutons construction libre", hud, Vector3.zero);
             gm.HudFreeButtons = free.gameObject;
             var freeRt = free.gameObject.AddComponent<RectTransform>();
             freeRt.sizeDelta = Vector2.zero;
-            UIFactory.CreateButton(freeRt, "Annuler", new Vector2(90f, -42f), bs, Blue, "undo", "", 26f);
-            UIFactory.CreateButton(freeRt, "Tout effacer", new Vector2(250f, -42f), bs, Red, "clear", "", 24f);
-            UIFactory.CreateButton(freeRt, "Sauvegarder", new Vector2(410f, -42f), bs, Green, "creations", "", 24f);
+            UIFactory.CreateButton(freeRt, "Annuler", new Vector2(90f, 4f), bs, Blue, "undo", "", 26f);
+            UIFactory.CreateButton(freeRt, "Tout effacer", new Vector2(250f, 4f), bs, Red, "clear", "", 24f);
+            UIFactory.CreateButton(freeRt, "Sauvegarder", new Vector2(410f, 4f), bs, Green, "creations", "", 24f);
+            UIFactory.CreateButton(freeRt, "Publier", new Vector2(250f, -76f), bs, Teal, "publish", "", 26f);
+            UIFactory.CreateButton(freeRt, "Échelle", new Vector2(410f, -76f), bs, Pink, "scale", "", 26f);
 
             var challenge = Group("Boutons défi", hud, Vector3.zero);
             gm.HudChallengeButtons = challenge.gameObject;
             var chRt = challenge.gameObject.AddComponent<RectTransform>();
             chRt.sizeDelta = Vector2.zero;
-            UIFactory.CreateButton(chRt, "J'ai fini !", new Vector2(330f, -42f), new Vector2(310f, 66f), Orange, "finish", "", 28f);
+            UIFactory.CreateButton(chRt, "J'ai fini !", new Vector2(330f, 4f), new Vector2(310f, 66f), Orange, "finish", "", 28f);
 
             var tuto = Group("Boutons tutoriel", hud, Vector3.zero);
             gm.HudTutorialButtons = tuto.gameObject;
             var tuRt = tuto.gameObject.AddComponent<RectTransform>();
             tuRt.sizeDelta = Vector2.zero;
-            UIFactory.CreateButton(tuRt, "Passer le tutoriel", new Vector2(330f, -42f), new Vector2(310f, 66f), Grey, "skip", "", 26f);
+            UIFactory.CreateButton(tuRt, "Passer le tutoriel", new Vector2(330f, 4f), new Vector2(310f, 66f), Grey, "skip", "", 26f);
 
             gm.Hud = hud.gameObject;
             hud.gameObject.SetActive(false);
